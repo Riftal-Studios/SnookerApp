@@ -1410,8 +1410,9 @@ class Table {
         // Blue spot
         circle((89 - this.cushionWidth) * this.scale, (44.5 - this.cushionWidth) * this.scale, spotSize);
 
-        // Pink spot
-        circle((141 - this.cushionWidth) * this.scale, (44.5 - this.cushionWidth) * this.scale, spotSize);
+        // Pink spot (positioned with clearance from red triangle)
+        const pinkSpotX = 130 - 5.25; // Same position as pink ball
+        circle((pinkSpotX - this.cushionWidth) * this.scale, (44.5 - this.cushionWidth) * this.scale, spotSize);
 
         // Black spot
         circle((164 - this.cushionWidth) * this.scale, (44.5 - this.cushionWidth) * this.scale, spotSize);
@@ -1590,7 +1591,11 @@ class BallManager {
      */
     addColoredBalls() {
         // Standard snooker colored ball positions
-        this.addBall(141, 44.5, 'pink', 'pink');
+        // Pink ball sits above the red triangle with proper clearance
+        const redApexX = 130;
+        const ballDiameter = 5.25; // One ball diameter for clearance
+        const pinkX = redApexX - ballDiameter; // Shift left by one ball diameter
+        this.addBall(pinkX, 44.5, 'pink', 'pink');
         this.addBall(89, 44.5, 'blue', 'blue');
         this.addBall(44.5, 44.5, 'brown', 'brown');
         this.addBall(44.5, 33.375, 'green', 'green');
