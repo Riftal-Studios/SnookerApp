@@ -2135,9 +2135,9 @@ class CityBackground {
         
         // Create neon signs
         this.neonSigns = [
-            { text: "SNOOKER", x: windowWidth * 0.2, y: windowHeight * 0.3, hue: 0 },
-            { text: "CLUB", x: windowWidth * 0.7, y: windowHeight * 0.25, hue: 180 },
-            { text: "24/7", x: windowWidth * 0.5, y: windowHeight * 0.35, hue: 120 }
+            { text: "SNOOKER", x: windowWidth * 0.4, y: windowHeight * 0.16, hue: 0 },
+            { text: "CLUB", x: windowWidth * 0.57, y: windowHeight * 0.16, hue: 180 },
+            { text: "24/7", x: windowWidth * 0.5, y: windowHeight * 0.16, hue: 120 }
         ];
     }
     
