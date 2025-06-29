@@ -150,6 +150,11 @@ function keyPressed() {
     // Sound controls
     if (key === 'm' || key === 'M') {
         soundManager.toggleMute();
+        if (soundManager.muted) {
+            console.log('SOUND: OFF');
+        } else {
+            console.log('SOUND: ON');
+        }
     }
 }
 
@@ -690,6 +695,7 @@ class Game {
      * Handle when a ball is potted
      */
     handleBallPotted(ball) {
+        console.log(`%cBALL POTTED: ${ball.colorName}`, `color: ${this.getBallColor(ball.colorName)}`);
         ball.isPotted = true;
 
         // Remove from physics world
@@ -730,6 +736,23 @@ class Game {
         }
 
         this.lastPottedBall = ball;
+    }
+    
+    /**
+     * Get CSS color for console logging
+     */
+    getBallColor(colorName) {
+        switch(colorName) {
+            case 'white': return '#FFFFFF';
+            case 'red': return '#DC143C';
+            case 'yellow': return '#FFD700';
+            case 'green': return '#008000';
+            case 'brown': return '#8B4513';
+            case 'blue': return '#0000FF';
+            case 'pink': return '#FFC0CB';
+            case 'black': return '#000000';
+            default: return '#808080';
+        }
     }
 
     /**
@@ -781,6 +804,7 @@ class Game {
     handleKeyPress(key) {
         switch(key) {
             case '1':
+                console.log('GAME MODE: Starting Positions');
                 this.displayMode = 1;
                 this.ballManager.setupStartingPositions(false); // Don't add cue ball
                 this.cue.reset();
@@ -789,6 +813,7 @@ class Game {
                 this.lastPottedBall = null;
                 break;
             case '2':
+                console.log('GAME MODE: Random Reds');
                 this.displayMode = 2;
                 this.ballManager.setupRandomReds(false); // Don't add cue ball
                 this.cue.reset();
@@ -797,6 +822,7 @@ class Game {
                 this.lastPottedBall = null;
                 break;
             case '3':
+                console.log('GAME MODE: Random All');
                 this.displayMode = 3;
                 this.ballManager.setupRandomAll(false); // Don't add cue ball
                 this.cue.reset();
@@ -818,6 +844,7 @@ class Game {
 
             if (this.isValidCueBallPosition(gameX, gameY)) {
                 // Place the cue ball
+                console.log('CUE BALL PLACED');
                 this.ballManager.addCueBall(gameX, gameY, true);
                 this.isPlacingCueBall = false;
                 const report = "Cue ball placed successfully";
@@ -874,8 +901,10 @@ class Game {
                     let report = '';
                     if (ballA.id === 'cue') {
                         report = `Cue ball hit ${ballB.colorName}`;
+                        console.log('CUE HIT:', ballB.colorName);
                     } else {
                         report = `Cue ball hit ${ballA.colorName}`;
+                        console.log('CUE HIT:', ballA.colorName);
                     }
                     this.collisionReports.unshift(report);
 
@@ -1666,6 +1695,7 @@ class Ball {
         this.offsetY = offsetY;
         this.radius = 2.625;
         this.isPotted = false;
+        this.isLogged = false; // For movement logging
         
         // Create Matter.js body with offset
         this.body = Bodies.circle(
@@ -1719,6 +1749,8 @@ class Ball {
         const maxVelocity = 15;
         const velocity = this.body.velocity;
         const speed = Math.sqrt(velocity.x * velocity.x + velocity.y * velocity.y);
+        
+        // No movement logging to avoid flooding
         
         if (speed > maxVelocity) {
             // Scale down velocity to max
@@ -1787,6 +1819,7 @@ class Cue {
         this.maxPower = 20;
         this.cueLength = 140; // Length of cue stick in pixels
         this.cueOffset = 15; // Distance from ball when aiming
+        this.lastLoggedPower = 0; // For power logging
     }
     
     /**
@@ -1816,6 +1849,7 @@ class Cue {
             const distance = p5.Vector.dist(this.aimStart, this.aimEnd);
             // Exponential power scaling for more dramatic effect
             this.power = constrain(pow(distance / 50, 1.5) * 10, 0, this.maxPower);
+            // Power is calculated but not logged to avoid flooding
         }
     }
     
@@ -1824,6 +1858,7 @@ class Cue {
      */
     shoot(cueBall) {
         if (this.isAiming && this.power > 0 && this.cueBall) {
+            console.log('SHOT TAKEN - Power:', this.power.toFixed(1));
             // Calculate force direction (from cue ball towards mouse, not away)
             const force = p5.Vector.sub(this.aimEnd, this.aimStart);
             force.normalize();
