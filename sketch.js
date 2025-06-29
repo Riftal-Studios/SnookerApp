@@ -95,8 +95,8 @@ function setup() {
     // Disable gravity for top-down view
     world.gravity.y = 0;
 
-    // Initialize sound manager
-    soundManager = new SoundManager();
+    // Initialize sound manager (will be activated on first user interaction)
+    soundManager = null; // Delay initialization until user interaction
     
     // Initialize city background
     cityBackground = new CityBackground();
@@ -107,7 +107,9 @@ function setup() {
     // Set up collision detection with sound
     Events.on(engine, 'collisionStart', function(event) {
         game.handleCollisions(event.pairs);
-        soundManager.handleCollisionSound(event.pairs);
+        if (soundManager) {
+            soundManager.handleCollisionSound(event.pairs);
+        }
     });
 }
 
@@ -149,11 +151,15 @@ function keyPressed() {
     
     // Sound controls
     if (key === 'm' || key === 'M') {
-        soundManager.toggleMute();
-        if (soundManager.muted) {
-            console.log('SOUND: OFF');
+        if (soundManager) {
+            soundManager.toggleMute();
+            if (soundManager.muted) {
+                console.log('SOUND: OFF');
+            } else {
+                console.log('SOUND: ON');
+            }
         } else {
-            console.log('SOUND: ON');
+            console.log('🔊 Click anywhere first to enable audio!');
         }
     }
 }
@@ -162,6 +168,13 @@ function keyPressed() {
  * Handle mouse press for cue interaction
  */
 function mousePressed() {
+    // Initialize sound manager on first user interaction to avoid browser warnings
+    if (!soundManager) {
+        console.log('🔊 Initializing audio system...');
+        soundManager = new SoundManager();
+        console.log('✅ Audio system ready!');
+    }
+    
     game.handleMousePress(mouseX, mouseY);
 }
 
@@ -664,26 +677,27 @@ class Game {
             for (let pocket of pockets) {
                 const distance = dist(ballX, ballY, pocket.x, pocket.y);
 
-                // If ball is close to pocket, apply attraction force
-                if (distance < pocket.radius * 1.5 && distance > pocket.radius * 0.5) {
-                    // Calculate attraction force towards pocket center
+                // If ball is close to pocket, apply attraction force (increased range for easier potting)
+                if (distance < pocket.radius * 2.2 && distance > pocket.radius * 0.3) {
+                    // Calculate stronger attraction force towards pocket center
                     const pocketX = this.offsetX + pocket.x * this.scale;
                     const pocketY = this.offsetY + pocket.y * this.scale;
+                    const attractionStrength = 0.0008; // Increased from 0.0002
                     const force = {
-                        x: (pocketX - ball.body.position.x) * 0.0002,
-                        y: (pocketY - ball.body.position.y) * 0.0002
+                        x: (pocketX - ball.body.position.x) * attractionStrength,
+                        y: (pocketY - ball.body.position.y) * attractionStrength
                     };
                     Body.applyForce(ball.body, ball.body.position, force);
 
-                    // Reduce velocity for easier capture
+                    // Reduce velocity more aggressively for easier capture
                     Body.setVelocity(ball.body, {
-                        x: ball.body.velocity.x * 0.92,
-                        y: ball.body.velocity.y * 0.92
+                        x: ball.body.velocity.x * 0.88, // Increased damping from 0.92
+                        y: ball.body.velocity.y * 0.88
                     });
                 }
 
-                // If ball center is close enough to pocket center, it's potted
-                if (distance < pocket.radius * 0.7) {
+                // If ball center is close enough to pocket center, it's potted (increased capture radius)
+                if (distance < pocket.radius * 0.85) {
                     this.handleBallPotted(ball);
                     break;
                 }
