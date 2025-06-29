@@ -590,7 +590,7 @@ class Game {
             fill(255, 255, 255, 200);
             stroke(0, 255, 0, 255);
             strokeWeight(2);
-            circle(mouseX - this.offsetX, mouseY - this.offsetY, 5.25 * this.scale);
+            circle(mouseX - this.offsetX, mouseY - this.offsetY, 2.625 * 2 * this.scale);
 
             // Show placement hint
             fill(0, 255, 0);
@@ -603,7 +603,7 @@ class Game {
             fill(255, 255, 255, 100);
             stroke(255, 0, 0, 255);
             strokeWeight(2);
-            circle(mouseX - this.offsetX, mouseY - this.offsetY, 5.25 * this.scale);
+            circle(mouseX - this.offsetX, mouseY - this.offsetY, 2.625 * 2 * this.scale);
 
             // Show error hint
             fill(255, 0, 0);
@@ -940,7 +940,7 @@ class Table {
 
         // Table measurements in game units
         this.cushionWidth = 4;
-        this.pocketRadius = 5.5; // Increased for better ball capture
+        this.pocketRadius = 3.708; // 1.5 times ball diameter (4.944 * 1.5 = 7.416, so radius = 3.708)
         this.cornerPocketSize = 9; // Increased gap for corner pockets
         this.middlePocketSize = 8; // Increased gap for middle pockets
 
@@ -1411,7 +1411,7 @@ class Table {
         circle((89 - this.cushionWidth) * this.scale, (44.5 - this.cushionWidth) * this.scale, spotSize);
 
         // Pink spot (positioned with clearance from red triangle)
-        const pinkSpotX = 130 - 5.25; // Same position as pink ball
+        const pinkSpotX = 130 - 4.944; // Same position as pink ball (diameter = 4.944)
         circle((pinkSpotX - this.cushionWidth) * this.scale, (44.5 - this.cushionWidth) * this.scale, spotSize);
 
         // Black spot
@@ -1452,7 +1452,7 @@ class BallManager {
         // Add reds in triangle formation
         const startX = 130;
         const startY = 44.5;
-        const ballRadius = 2.625;
+        const ballRadius = 2.472; // Standard snooker ball radius = (table width / 36) / 2 = (178/36)/2 = 2.472
         const spacing = ballRadius * 2.05; // Slightly tighter for proper triangle
         
         // Create red balls in triangle
@@ -1593,7 +1593,7 @@ class BallManager {
         // Standard snooker colored ball positions
         // Pink ball sits above the red triangle with proper clearance
         const redApexX = 130;
-        const ballDiameter = 5.25; // One ball diameter for clearance
+        const ballDiameter = 4.944; // Standard snooker ball diameter = table width / 36 = 178/36 = 4.944
         const pinkX = redApexX - ballDiameter; // Shift left by one ball diameter
         this.addBall(pinkX, 44.5, 'pink', 'pink');
         this.addBall(89, 44.5, 'blue', 'blue');
@@ -1630,7 +1630,7 @@ class BallManager {
      * Check if position is valid (no overlaps)
      */
     isValidPosition(x, y) {
-        const minDistance = 5.5; // Slightly more than ball diameter
+        const minDistance = 5.0; // Slightly more than ball diameter (4.944)
         
         for (let ball of this.balls) {
             const d = dist(x, y, ball.x, ball.y);
@@ -1698,7 +1698,7 @@ class Ball {
         this.scale = scale;
         this.offsetX = offsetX;
         this.offsetY = offsetY;
-        this.radius = 2.625;
+        this.radius = 2.472; // Standard snooker ball diameter = table width / 36 = 178/36 = 4.944, so radius = 2.472
         this.isPotted = false;
         this.isLogged = false; // For movement logging
         
@@ -1787,8 +1787,12 @@ class Ball {
         noStroke();
         circle(renderX, renderY, this.radius * this.scale * 2);
         
-        // Add highlight for 3D effect
-        fill(255, 255, 255, 60);
+        // Add highlight for 3D effect - adjust opacity based on ball brightness
+        let highlightOpacity = 60;
+        if (this.colorName === 'yellow' || this.colorName === 'pink' || this.colorName === 'white') {
+            highlightOpacity = 30; // Reduced highlight for light-colored balls
+        }
+        fill(255, 255, 255, highlightOpacity);
         circle(
             renderX - this.radius * this.scale * 0.3,
             renderY - this.radius * this.scale * 0.3,
