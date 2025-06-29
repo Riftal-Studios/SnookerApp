@@ -94,7 +94,7 @@ function setup() {
     
     // Disable gravity for top-down view
     world.gravity.y = 0;
-    
+
     // Initialize sound manager
     soundManager = new SoundManager();
     
@@ -116,10 +116,10 @@ function setup() {
  */
 function windowResized() {
     resizeCanvas(windowWidth, windowHeight);
-    
+
     // Recalculate table position
     game.updateTablePosition();
-    
+
     // Regenerate city background for new dimensions
     cityBackground = new CityBackground();
 }
@@ -183,13 +183,13 @@ class Game {
         // Game dimensions (in game units)
         this.tableWidth = 178;
         this.tableHeight = 89;
-        
+
         // Calculate scale to fit table nicely in viewport
         this.calculateScale();
-        
+
         // Initialize game components
         this.createComponents();
-        
+
         // Game state
         this.displayMode = 1; // 1: starting positions, 2: random reds, 3: random all
         this.isPaused = false;
@@ -200,11 +200,11 @@ class Game {
         this.cueBallPlacementY = null;
         this.consecutiveColoredPotted = 0;
         this.lastPottedBall = null;
-        
+
         // Initialize game
         this.initializeGame();
     }
-    
+
     /**
      * Calculate scale and offsets based on window size
      */
@@ -212,21 +212,21 @@ class Game {
         // Target table size should be about 60% of viewport
         const targetWidth = windowWidth * 0.6;
         const targetHeight = windowHeight * 0.6;
-        
+
         // Calculate scale to fit within target size while maintaining aspect ratio
         const scaleX = targetWidth / this.tableWidth;
         const scaleY = targetHeight / this.tableHeight;
         this.scale = Math.min(scaleX, scaleY, 5); // Cap at 5 for reasonable size
-        
+
         // Calculate actual pixel dimensions
         this.tablePixelWidth = this.tableWidth * this.scale;
         this.tablePixelHeight = this.tableHeight * this.scale;
-        
+
         // Center the table
         this.offsetX = (windowWidth - this.tablePixelWidth) / 2;
         this.offsetY = (windowHeight - this.tablePixelHeight) / 2;
     }
-    
+
     /**
      * Create or recreate game components
      */
@@ -235,17 +235,17 @@ class Game {
         this.ballManager = new BallManager(this.scale, this.offsetX, this.offsetY);
         this.cue = new Cue(this.scale, this.offsetX, this.offsetY);
     }
-    
+
     /**
      * Update table position on window resize
      */
     updateTablePosition() {
         const oldOffsetX = this.offsetX;
         const oldOffsetY = this.offsetY;
-        
+
         // Recalculate scale and offsets
         this.calculateScale();
-        
+
         // Update component offsets
         this.table.offsetX = this.offsetX;
         this.table.offsetY = this.offsetY;
@@ -253,11 +253,11 @@ class Game {
         this.ballManager.offsetY = this.offsetY;
         this.cue.offsetX = this.offsetX;
         this.cue.offsetY = this.offsetY;
-        
+
         // Update all ball body positions
         const deltaX = this.offsetX - oldOffsetX;
         const deltaY = this.offsetY - oldOffsetY;
-        
+
         for (let ball of this.ballManager.balls) {
             if (!ball.isPotted) {
                 Body.setPosition(ball.body, {
@@ -266,7 +266,7 @@ class Game {
                 });
             }
         }
-        
+
         // Update cushion positions
         for (let cushion of this.table.cushions) {
             Body.setPosition(cushion, {
@@ -274,7 +274,7 @@ class Game {
                 y: cushion.position.y + deltaY
             });
         }
-        
+
         // Update boundary wall positions
         for (let wall of this.table.walls) {
             Body.setPosition(wall, {
@@ -282,8 +282,34 @@ class Game {
                 y: wall.position.y + deltaY
             });
         }
+
+        // Ensure D-zone balls stay within bounds
+        if (this.isPlacingCueBall) {
+            this.updateCueBallPosition();
+        }
     }
-    
+    /**
+     * Update the cue ball position after window resize to prevent movement
+     */
+    updateCueBallPosition() {
+        const baulkLine = 44.5;
+        const dRadius = 14.5;
+
+
+        const cueBall = this.ballManager.getCueBall();
+        if (cueBall) {
+            // Ensure cue ball remains within the D-zone
+            const newX = (baulkLine) * this.scale;
+            const newY = (this.tableHeight / 2) * this.scale;
+
+            // Update the cue ball's position
+            Body.setPosition(cueBall.body, {
+                x: this.offsetX + newX,
+                y: this.offsetY + newY
+            });
+        }
+    }
+
     /**
      * Initialize game with starting ball positions
      */
@@ -292,7 +318,7 @@ class Game {
         // Cue ball placement will be handled manually
         this.isPlacingCueBall = true;
     }
-    
+
     /**
      * Update game logic
      */
@@ -300,16 +326,16 @@ class Game {
         if (!this.isPaused) {
             this.ballManager.update();
             this.cue.update();
-            
+
             // Check if any balls are still moving
             this.ballsMoving = this.checkBallsMoving();
-            
+
             // Check for potted balls
             this.checkPottedBalls();
-            
+
             // Safety check for escaped balls
             this.checkEscapedBalls();
-            
+
             // Update cue ball placement preview
             if (this.isPlacingCueBall && mouseIsPressed) {
                 this.cueBallPlacementX = mouseX;
@@ -317,61 +343,62 @@ class Game {
             }
         }
     }
-    
+
     /**
      * Check for balls that have escaped the table bounds
      */
     checkEscapedBalls() {
         const margin = 50; // Extra margin beyond table bounds
-        
+
         for (let ball of this.ballManager.balls) {
             if (ball.isPotted) continue;
-            
+
             const pos = ball.body.position;
             const tableLeft = this.offsetX - margin;
             const tableRight = this.offsetX + this.width * this.scale + margin;
             const tableTop = this.offsetY - margin;
             const tableBottom = this.offsetY + this.height * this.scale + margin;
-            
+
             // If ball is outside bounds, reset it to a safe position
-            if (pos.x < tableLeft || pos.x > tableRight || 
+            if (pos.x < tableLeft || pos.x > tableRight ||
                 pos.y < tableTop || pos.y > tableBottom) {
-                
+
                 console.warn(`Ball ${ball.id} escaped table bounds! Resetting position.`);
-                
+
                 // Reset to center of table
                 Body.setPosition(ball.body, {
                     x: this.offsetX + this.width * this.scale / 2,
                     y: this.offsetY + this.height * this.scale / 2
                 });
-                
+
                 // Stop the ball
                 Body.setVelocity(ball.body, { x: 0, y: 0 });
                 Body.setAngularVelocity(ball.body, 0);
             }
         }
+
     }
-    
+
     /**
      * Check if any balls are still moving
      */
     checkBallsMoving() {
         const minVelocity = 0.1; // Threshold for considering a ball "stopped"
-        
+
         for (let ball of this.ballManager.balls) {
             if (ball.isPotted) continue;
-            
+
             const velocity = ball.body.velocity;
             const speed = Math.sqrt(velocity.x * velocity.x + velocity.y * velocity.y);
-            
+
             if (speed > minVelocity) {
                 return true; // At least one ball is still moving
             }
         }
-        
+
         return false; // All balls have stopped
     }
-    
+
     /**
      * Render all game elements
      */
@@ -383,61 +410,62 @@ class Game {
         fill(0, 0, 0, 50);
         noStroke();
         rect(
-            this.offsetX - 50, 
-            this.offsetY - 50, 
-            this.tablePixelWidth + 100, 
+            this.offsetX - 50,
+            this.offsetY - 50,
+            this.tablePixelWidth + 100,
             this.tablePixelHeight + 100,
             20
         );
         drawingContext.shadowBlur = 0;
         pop();
-        
+
         // Table and game elements are rendered on top of city background
         push();
         translate(this.offsetX, this.offsetY);
-        
+
         // Render game components
+
         this.table.render();
         this.ballManager.render();
-        
+
         // Render cue ball placement mode
         if (this.isPlacingCueBall) {
             this.renderCueBallPlacement();
         } else {
             this.cue.render();
         }
-        
+
         pop();
-        
+
         // Render UI elements (not translated)
         this.renderUI();
     }
-    
+
     /**
      * Render UI elements (score, instructions, etc.)
      */
     renderUI() {
         push();
-        
+
         // Semi-transparent background for UI
         fill(0, 0, 0, 180);
         noStroke();
         rect(5, 5, 300, 165, 5);
-        
+
         // Title
         fill(255);
         textAlign(LEFT);
         textSize(18);
         textStyle(BOLD);
         text("SNOOKER GAME", 15, 30);
-        
+
         textStyle(NORMAL);
         textSize(14);
-        
+
         // Display mode
         fill(255, 255, 100);
         text(`Mode: ${this.getModeName()}`, 15, 55);
-        
+
         // Instructions
         fill(255);
         textSize(12);
@@ -454,7 +482,7 @@ class Game {
             text("• Press 1, 2, or 3 to change ball layout", 15, 120);
             text("• Press M to toggle sound", 15, 135);
         }
-        
+
         // Sound status
         if (soundManager && soundManager.muted) {
             fill(255, 100, 100);
@@ -463,30 +491,30 @@ class Game {
             fill(100, 255, 100);
             text("🔊 Sound: ON", 15, 155);
         }
-        
+
         // Ball count
         const activeBalls = this.ballManager.balls.filter(b => !b.isPotted).length;
         const pottedReds = this.ballManager.balls.filter(b => b.isPotted && b.colorName === 'red').length;
-        
+
         fill(0, 0, 0, 180);
         rect(width - 155, 5, 150, 60, 5);
-        
+
         fill(255);
         textAlign(RIGHT);
         textSize(14);
         text(`Active Balls: ${activeBalls}`, width - 15, 30);
         text(`Potted Reds: ${pottedReds}`, width - 15, 50);
-        
+
         // Collision reports with better styling
         if (this.collisionReports.length > 0) {
             fill(0, 0, 0, 180);
             rect(5, height - 85, 300, 80, 5);
-            
+
             fill(255, 255, 100);
             textAlign(LEFT);
             textSize(12);
             text("Recent Events:", 15, height - 65);
-            
+
             fill(255);
             // Show last 3 collisions
             for (let i = 0; i < Math.min(3, this.collisionReports.length); i++) {
@@ -495,7 +523,7 @@ class Game {
                 text(`• ${this.collisionReports[i]}`, 15, height - 45 + i * 18);
             }
         }
-        
+
         // Game state indicators
         const cueBall = this.ballManager.getCueBall();
         if (cueBall && cueBall.isPotted) {
@@ -513,10 +541,10 @@ class Game {
             textSize(16);
             text("Wait for balls to stop...", width / 2, height - 100);
         }
-        
+
         pop();
     }
-    
+
     /**
      * Get display mode name
      */
@@ -528,36 +556,37 @@ class Game {
             default: return "Unknown";
         }
     }
-    
+
     /**
      * Render cue ball placement mode
      */
     renderCueBallPlacement() {
         push();
-        
+
         // Highlight D-zone
         const dRadius = 14.5; // Half of D diameter (29.2/2)
         const baulkLine = 44.5;
         const dCenterX = (baulkLine) * this.scale;
         const dCenterY = (this.tableHeight / 2) * this.scale;
-        
+
         // Draw D-zone with highlight
         strokeWeight(3);
         stroke(255, 255, 100, 150);
         fill(255, 255, 100, 30);
-        arc(dCenterX, dCenterY, dRadius * 2 * this.scale, dRadius * 2 * this.scale, -HALF_PI, HALF_PI);
-        
+        arc(dCenterX, dCenterY, dRadius * 2 * this.scale, dRadius * 2 * this.scale, HALF_PI, -HALF_PI);
+
         // Draw preview cue ball at mouse position if in D-zone
         const mouseGameX = (mouseX - this.offsetX) / this.scale;
         const mouseGameY = (mouseY - this.offsetY) / this.scale;
-        
+
+
         if (this.isValidCueBallPosition(mouseGameX, mouseGameY)) {
             // Valid position - show green preview
             fill(255, 255, 255, 200);
             stroke(0, 255, 0, 255);
             strokeWeight(2);
             circle(mouseX - this.offsetX, mouseY - this.offsetY, 5.25 * this.scale);
-            
+
             // Show placement hint
             fill(0, 255, 0);
             noStroke();
@@ -570,7 +599,7 @@ class Game {
             stroke(255, 0, 0, 255);
             strokeWeight(2);
             circle(mouseX - this.offsetX, mouseY - this.offsetY, 5.25 * this.scale);
-            
+
             // Show error hint
             fill(255, 0, 0);
             noStroke();
@@ -578,16 +607,16 @@ class Game {
             textSize(12);
             text("Must place in D-zone", mouseX - this.offsetX, mouseY - this.offsetY - 20);
         }
-        
+
         // Instructions
         fill(255, 255, 100);
         textAlign(CENTER);
         textSize(18);
         text("Place the cue ball in the D-zone", 0, -this.tableHeight * this.scale / 2 - 30);
-        
+
         pop();
     }
-    
+
     /**
      * Check if position is valid for cue ball placement
      */
@@ -597,39 +626,39 @@ class Game {
         const baulkLine = 44.5;
         const dCenterX = baulkLine;
         const dCenterY = 44.5; // Center of table height
-        
+
         // Check if in D semicircle
         const dx = x - dCenterX;
         const dy = y - dCenterY;
         const distance = Math.sqrt(dx * dx + dy * dy);
-        
+
         // Must be within D radius and on left side of baulk line
         if (distance <= dRadius && x <= baulkLine) {
             // Check if position is not occupied by another ball
             return this.ballManager.isValidPosition(x, y);
         }
-        
+
         return false;
     }
-    
+
     /**
      * Check for balls that have been potted
      */
     checkPottedBalls() {
         const pockets = this.table.pockets;
         const balls = this.ballManager.balls;
-        
+
         for (let ball of balls) {
             if (ball.isPotted) continue; // Skip already potted balls
-            
+
             // Get ball position in game units
             const ballX = (ball.body.position.x - this.offsetX) / this.scale;
             const ballY = (ball.body.position.y - this.offsetY) / this.scale;
-            
+
             // Check each pocket
             for (let pocket of pockets) {
                 const distance = dist(ballX, ballY, pocket.x, pocket.y);
-                
+
                 // If ball is close to pocket, apply attraction force
                 if (distance < pocket.radius * 1.5 && distance > pocket.radius * 0.5) {
                     // Calculate attraction force towards pocket center
@@ -640,14 +669,14 @@ class Game {
                         y: (pocketY - ball.body.position.y) * 0.0002
                     };
                     Body.applyForce(ball.body, ball.body.position, force);
-                    
+
                     // Reduce velocity for easier capture
                     Body.setVelocity(ball.body, {
                         x: ball.body.velocity.x * 0.92,
                         y: ball.body.velocity.y * 0.92
                     });
                 }
-                
+
                 // If ball center is close enough to pocket center, it's potted
                 if (distance < pocket.radius * 0.7) {
                     this.handleBallPotted(ball);
@@ -656,28 +685,28 @@ class Game {
             }
         }
     }
-    
+
     /**
      * Handle when a ball is potted
      */
     handleBallPotted(ball) {
         ball.isPotted = true;
-        
+
         // Remove from physics world
         World.remove(world, ball.body);
-        
+
         // Play pocket drop sound
         if (soundManager) {
             soundManager.playPocketDrop();
         }
-        
+
         // Add to collision reports
         const report = `${ball.colorName} ball potted!`;
         this.collisionReports.unshift(report);
         if (this.collisionReports.length > 5) {
             this.collisionReports.pop();
         }
-        
+
         // Track consecutive colored ball potting
         if (ball.colorName !== 'red' && ball.colorName !== 'white') {
             if (this.lastPottedBall && this.lastPottedBall.colorName !== 'red' && this.lastPottedBall.colorName !== 'white') {
@@ -699,10 +728,10 @@ class Game {
             const report = "Cue ball potted! Place it in the D-zone";
             this.collisionReports.unshift(report);
         }
-        
+
         this.lastPottedBall = ball;
     }
-    
+
     /**
      * Re-spot a colored ball after it's potted
      */
@@ -716,7 +745,7 @@ class Game {
             pink: { x: 141, y: 44.5 },
             black: { x: 164, y: 44.5 }
         };
-        
+
         const spot = spots[ball.colorName];
         if (spot) {
             // Check if spot is occupied
@@ -739,13 +768,13 @@ class Game {
                     }
                 );
                 World.add(world, ball.body);
-                
+
                 const report = `${ball.colorName} ball re-spotted`;
                 this.collisionReports.unshift(report);
             }
         }
     }
-    
+
     /**
      * Handle keyboard input
      */
@@ -777,7 +806,7 @@ class Game {
                 break;
         }
     }
-    
+
     /**
      * Handle mouse press
      */
@@ -786,7 +815,7 @@ class Game {
             // Handle cue ball placement
             const gameX = (x - this.offsetX) / this.scale;
             const gameY = (y - this.offsetY) / this.scale;
-            
+
             if (this.isValidCueBallPosition(gameX, gameY)) {
                 // Place the cue ball
                 this.ballManager.addCueBall(gameX, gameY, true);
@@ -802,7 +831,7 @@ class Game {
             }
         }
     }
-    
+
     /**
      * Handle mouse drag
      */
@@ -811,7 +840,7 @@ class Game {
             this.cue.updateAiming(x, y);
         }
     }
-    
+
     /**
      * Handle mouse release
      */
@@ -823,7 +852,7 @@ class Game {
             }
         }
     }
-    
+
     /**
      * Handle collision events from Matter.js
      */
@@ -831,15 +860,15 @@ class Game {
         for (let pair of pairs) {
             const bodyA = pair.bodyA;
             const bodyB = pair.bodyB;
-            
+
             // Check if both bodies are balls (have labels)
-            if (bodyA.label && bodyB.label && 
+            if (bodyA.label && bodyB.label &&
                 bodyA.label !== 'ground' && bodyB.label !== 'ground') {
-                
+
                 // Find the ball objects
                 const ballA = this.ballManager.balls.find(b => b.id === bodyA.label);
                 const ballB = this.ballManager.balls.find(b => b.id === bodyB.label);
-                
+
                 // Only report collisions involving the cue ball
                 if (ballA && ballB && (ballA.id === 'cue' || ballB.id === 'cue')) {
                     let report = '';
@@ -849,13 +878,13 @@ class Game {
                         report = `Cue ball hit ${ballA.colorName}`;
                     }
                     this.collisionReports.unshift(report);
-                    
+
                     // Keep only recent reports
                     if (this.collisionReports.length > 5) {
                         this.collisionReports.pop();
                     }
                 }
-            } else if ((bodyA.label === 'cue' && bodyB.label === 'cushion') || 
+            } else if ((bodyA.label === 'cue' && bodyB.label === 'cushion') ||
                        (bodyA.label === 'cushion' && bodyB.label === 'cue')) {
                 // Cue ball hit cushion
                 const report = 'Cue ball hit cushion';
@@ -879,33 +908,33 @@ class Table {
         this.scale = scale;
         this.offsetX = offsetX;
         this.offsetY = offsetY;
-        
+
         // Table measurements in game units
         this.cushionWidth = 4;
         this.pocketRadius = 5.5; // Increased for better ball capture
         this.cornerPocketSize = 9; // Increased gap for corner pockets
         this.middlePocketSize = 8; // Increased gap for middle pockets
-        
+
         // Create physics bodies
         this.cushions = [];
         this.walls = [];
         this.createCushions();
         this.createBoundaryWalls();
-        
+
         // Define pocket positions
         this.createPockets();
     }
-    
+
     /**
      * Create Matter.js bodies for cushions
      */
     createCushions() {
         const restitution = 0.85;
         const cw = this.cushionWidth * this.scale;
-        
+
         // Clear any existing helpers
         this.cushions = [];
-        
+
         // Define cushion segments with proper gaps for pockets
         const segments = [
             // Top left cushion (leaves gap for corner pocket)
@@ -957,7 +986,7 @@ class Table {
                 label: 'right'
             }
         ];
-        
+
         // Create cushion bodies
         segments.forEach(seg => {
             const cushion = Bodies.rectangle(seg.x, seg.y, seg.width, seg.height, {
@@ -971,16 +1000,16 @@ class Table {
             });
             this.cushions.push(cushion);
         });
-        
+
         World.add(world, this.cushions);
     }
-    
+
     /**
      * Create invisible boundary walls to prevent balls from escaping
      */
     createBoundaryWalls() {
         const wallThickness = 50;
-        
+
         // Create walls outside the visible table area
         const walls = [
             // Top wall
@@ -1016,7 +1045,7 @@ class Table {
                 { isStatic: true, label: 'boundary-right' }
             )
         ];
-        
+
         // Set collision properties
         walls.forEach(wall => {
             wall.collisionFilter = {
@@ -1026,11 +1055,11 @@ class Table {
             wall.restitution = 0.5;
             wall.render = { visible: false }; // Make them invisible
         });
-        
+
         this.walls = walls;
         World.add(world, walls);
     }
-    
+
     /**
      * Define pocket positions
      */
@@ -1045,17 +1074,17 @@ class Table {
             { x: this.width / 2, y: 0, radius: this.pocketRadius },
             { x: this.width / 2, y: this.height, radius: this.pocketRadius }
         ];
-        
+
         // Create pocket "helper" bodies that guide balls in
         this.createPocketHelpers();
     }
-    
+
     /**
      * Create invisible angled bodies near pockets to guide balls
      */
     createPocketHelpers() {
         const helpers = [];
-        
+
         // Top-left corner helpers
         helpers.push(
             Bodies.rectangle(
@@ -1063,28 +1092,28 @@ class Table {
                 this.offsetY + this.cushionWidth * this.scale * 0.5,
                 this.cornerPocketSize * this.scale * 0.6,
                 this.cushionWidth * this.scale * 0.5,
-                { 
-                    isStatic: true, 
+                {
+                    isStatic: true,
                     angle: -Math.PI / 6,
                     render: { visible: false }
                 }
             )
         );
-        
+
         helpers.push(
             Bodies.rectangle(
                 this.offsetX + this.cushionWidth * this.scale * 0.5,
                 this.offsetY + this.cornerPocketSize * this.scale * 0.7,
                 this.cushionWidth * this.scale * 0.5,
                 this.cornerPocketSize * this.scale * 0.6,
-                { 
-                    isStatic: true, 
+                {
+                    isStatic: true,
                     angle: Math.PI / 6,
                     render: { visible: false }
                 }
             )
         );
-        
+
         // Similar helpers for other corners...
         // For now, add collision filters
         helpers.forEach(helper => {
@@ -1094,29 +1123,45 @@ class Table {
             };
             helper.restitution = 0.5; // Less bouncy to guide balls in
         });
-        
+
         World.add(world, helpers);
     }
-    
+    renderDZone() {
+        push();
+
+        const dRadius = 14.5; // D radius in game units
+        const baulkLine = 44.5; // Adjust based on your table
+        const dCenterX = (baulkLine) * this.scale;
+        const dCenterY = (this.height / 2) * this.scale;
+
+        // Draw the D-zone (always visible)
+        strokeWeight(2);
+        stroke(255, 255, 100, 150);
+        fill(255, 255, 100, 30);
+        arc(dCenterX, dCenterY, dRadius * 2 * this.scale, dRadius * 2 * this.scale, HALF_PI, -HALF_PI);
+
+        pop();
+    }
+
     /**
      * Render the table
      */
     render() {
         push();
-        
+
         // Draw outer table frame (wood)
         fill(92, 51, 23); // Dark wood
         noStroke();
         rect(-20, -20, this.width * this.scale + 40, this.height * this.scale + 40, 10);
-        
+
         // Inner bevel
         fill(139, 69, 19); // Lighter wood
         rect(-10, -10, this.width * this.scale + 20, this.height * this.scale + 20, 5);
-        
+
         // Draw table bed (slate)
         fill(50, 50, 50);
         rect(0, 0, this.width * this.scale, this.height * this.scale);
-        
+
         // Draw playing surface (green baize)
         fill(0, 100, 0);
         noStroke();
@@ -1126,16 +1171,17 @@ class Table {
             this.width * this.scale - 2 * this.cushionWidth * this.scale,
             this.height * this.scale - 2 * this.cushionWidth * this.scale
         );
-        
+
         // Draw cushions with proper geometry
         this.drawCushions();
-        
+
         // Draw pockets
         this.drawPockets();
-        
+        this.renderDZone();
+
         // Draw table markings
         this.drawTableMarkings();
-        
+
         // Add subtle cloth texture
         for (let i = 0; i < 5; i++) {
             fill(255, 255, 255, 2);
@@ -1146,10 +1192,10 @@ class Table {
                 this.height * this.scale - 2 * this.cushionWidth * this.scale - 2 * i
             );
         }
-        
+
         pop();
     }
-    
+
     /**
      * Draw cushions visually
      */
@@ -1157,11 +1203,11 @@ class Table {
         fill(0, 80, 0); // Darker green for cushions
         stroke(60, 30, 15); // Dark wood edge
         strokeWeight(1);
-        
+
         const cw = this.cushionWidth * this.scale;
         const cornerGap = this.cornerPocketSize * this.scale;
         const middleGap = this.middlePocketSize * this.scale;
-        
+
         // Top cushions
         // Left section
         beginShape();
@@ -1170,7 +1216,7 @@ class Table {
         vertex(this.width * this.scale / 2 - middleGap / 2 - cw * 0.3, cw);
         vertex(cornerGap + cw * 0.3, cw);
         endShape(CLOSE);
-        
+
         // Right section
         beginShape();
         vertex(this.width * this.scale / 2 + middleGap / 2, 0);
@@ -1178,7 +1224,7 @@ class Table {
         vertex(this.width * this.scale - cornerGap - cw * 0.3, cw);
         vertex(this.width * this.scale / 2 + middleGap / 2 + cw * 0.3, cw);
         endShape(CLOSE);
-        
+
         // Bottom cushions
         // Left section
         beginShape();
@@ -1187,7 +1233,7 @@ class Table {
         vertex(this.width * this.scale / 2 - middleGap / 2, this.height * this.scale);
         vertex(cornerGap, this.height * this.scale);
         endShape(CLOSE);
-        
+
         // Right section
         beginShape();
         vertex(this.width * this.scale / 2 + middleGap / 2 + cw * 0.3, this.height * this.scale - cw);
@@ -1195,7 +1241,7 @@ class Table {
         vertex(this.width * this.scale - cornerGap, this.height * this.scale);
         vertex(this.width * this.scale / 2 + middleGap / 2, this.height * this.scale);
         endShape(CLOSE);
-        
+
         // Left cushion
         beginShape();
         vertex(0, cornerGap);
@@ -1203,7 +1249,7 @@ class Table {
         vertex(cw, this.height * this.scale - cornerGap - cw * 0.3);
         vertex(0, this.height * this.scale - cornerGap);
         endShape(CLOSE);
-        
+
         // Right cushion
         beginShape();
         vertex(this.width * this.scale, cornerGap);
@@ -1211,50 +1257,50 @@ class Table {
         vertex(this.width * this.scale - cw, this.height * this.scale - cornerGap - cw * 0.3);
         vertex(this.width * this.scale - cw, cornerGap + cw * 0.3);
         endShape(CLOSE);
-        
+
         // Corner pieces
         this.drawCornerCushions();
     }
-    
+
     /**
      * Draw corner cushion pieces
      */
     drawCornerCushions() {
         const cw = this.cushionWidth * this.scale;
         const cornerGap = this.cornerPocketSize * this.scale;
-        
+
         fill(0, 80, 0);
         noStroke();
-        
+
         // Top-left corner
         arc(cornerGap, cornerGap, cornerGap * 2, cornerGap * 2, PI, PI + HALF_PI);
-        
+
         // Top-right corner
         arc(this.width * this.scale - cornerGap, cornerGap, cornerGap * 2, cornerGap * 2, -HALF_PI, 0);
-        
+
         // Bottom-left corner
         arc(cornerGap, this.height * this.scale - cornerGap, cornerGap * 2, cornerGap * 2, HALF_PI, PI);
-        
+
         // Bottom-right corner
         arc(this.width * this.scale - cornerGap, this.height * this.scale - cornerGap, cornerGap * 2, cornerGap * 2, 0, HALF_PI);
     }
-    
+
     /**
      * Draw pockets
      */
     drawPockets() {
         fill(0); // Black holes
         noStroke();
-        
+
         for (let pocket of this.pockets) {
             // Outer pocket ring
             fill(60, 30, 15); // Dark wood
             circle(pocket.x * this.scale, pocket.y * this.scale, pocket.radius * this.scale * 2.2);
-            
+
             // Inner pocket (the actual hole)
             fill(0);
             circle(pocket.x * this.scale, pocket.y * this.scale, pocket.radius * this.scale * 2);
-            
+
             // Add subtle gradient effect
             for (let i = 0; i < 5; i++) {
                 fill(0, 0, 0, 255 - i * 40);
@@ -1264,14 +1310,14 @@ class Table {
                     pocket.radius * this.scale * 2 - i * 2
                 );
             }
-            
+
             // Debug: Show pocket detection radius
             if (false) { // Set to true to see detection areas
                 noFill();
                 stroke(255, 0, 0, 100);
                 strokeWeight(1);
                 circle(pocket.x * this.scale, pocket.y * this.scale, pocket.radius * this.scale * 2 * 0.7);
-                
+
                 // Show pocket center
                 fill(255, 0, 0);
                 noStroke();
@@ -1279,20 +1325,20 @@ class Table {
             }
         }
     }
-    
+
     /**
      * Draw table markings (D-zone, spots, etc.)
      */
     drawTableMarkings() {
         push();
-        
+
         // Translate to account for cushions
         translate(this.cushionWidth * this.scale, this.cushionWidth * this.scale);
-        
+
         // D-zone parameters
-        const dRadius = 29.2; // Radius of D in game units
+        const dRadius = 0; // Radius of D in game units
         const baulkLine = 44.5 - this.cushionWidth; // Adjust for cushion width
-        
+
         // Draw baulk line
         stroke(255, 255, 255, 80);
         strokeWeight(2);
@@ -1302,7 +1348,7 @@ class Table {
             baulkLine * this.scale,
             (this.height - 2 * this.cushionWidth) * this.scale
         );
-        
+
         // Draw D arc
         noFill();
         stroke(255, 255, 255, 80);
@@ -1315,35 +1361,35 @@ class Table {
             -HALF_PI,
             HALF_PI
         );
-        
+
         // Draw spots
         fill(255, 255, 255);
         noStroke();
-        
+
         // Baulk line spots
         const spotSize = 1.5 * this.scale;
-        
+
         // Yellow spot
         circle(baulkLine * this.scale, (55.625 - this.cushionWidth) * this.scale, spotSize);
-        
+
         // Brown spot
         circle(baulkLine * this.scale, (44.5 - this.cushionWidth) * this.scale, spotSize);
-        
-        // Green spot  
+
+        // Green spot
         circle(baulkLine * this.scale, (33.375 - this.cushionWidth) * this.scale, spotSize);
-        
+
         // Blue spot
         circle((89 - this.cushionWidth) * this.scale, (44.5 - this.cushionWidth) * this.scale, spotSize);
-        
+
         // Pink spot
         circle((141 - this.cushionWidth) * this.scale, (44.5 - this.cushionWidth) * this.scale, spotSize);
-        
+
         // Black spot
         circle((164 - this.cushionWidth) * this.scale, (44.5 - this.cushionWidth) * this.scale, spotSize);
-        
+
         pop();
     }
-    
+
 }
 
 /**
