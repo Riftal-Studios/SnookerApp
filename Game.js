@@ -24,6 +24,9 @@ class Game {
         this.cueBallPlacementY = null;
         this.consecutiveColoredPotted = 0;
         this.lastPottedBall = null;
+        
+        // Initialize score manager
+        this.scoreManager = new ScoreManager();
 
         // Initialize game
         this.initializeGame();
@@ -152,7 +155,13 @@ class Game {
             this.cue.update();
 
             // Check if any balls are still moving
+            const wasMoving = this.ballsMoving;
             this.ballsMoving = this.checkBallsMoving();
+            
+            // If balls just stopped moving, end the shot
+            if (wasMoving && !this.ballsMoving) {
+                this.scoreManager.endShot();
+            }
 
             // Check for potted balls
             this.checkPottedBalls();
@@ -179,9 +188,9 @@ class Game {
 
             const pos = ball.body.position;
             const tableLeft = this.offsetX - margin;
-            const tableRight = this.offsetX + this.width * this.scale + margin;
+            const tableRight = this.offsetX + this.tableWidth * this.scale + margin;
             const tableTop = this.offsetY - margin;
-            const tableBottom = this.offsetY + this.height * this.scale + margin;
+            const tableBottom = this.offsetY + this.tableHeight * this.scale + margin;
 
             // If ball is outside bounds, reset it to a safe position
             if (pos.x < tableLeft || pos.x > tableRight ||
@@ -191,8 +200,8 @@ class Game {
 
                 // Reset to center of table
                 Body.setPosition(ball.body, {
-                    x: this.offsetX + this.width * this.scale / 2,
-                    y: this.offsetY + this.height * this.scale / 2
+                    x: this.offsetX + this.tableWidth * this.scale / 2,
+                    y: this.offsetY + this.tableHeight * this.scale / 2
                 });
 
                 // Stop the ball
@@ -248,13 +257,12 @@ class Game {
         translate(this.offsetX, this.offsetY);
 
         // Render game components
-
         this.table.render();
         this.ballManager.render();
 
-        // Render cue ball placement mode
+        // Render cue ball placement preview or cue
         if (this.isPlacingCueBall) {
-            this.renderCueBallPlacement();
+            this.renderCueBallPlacementPreview();
         } else {
             this.cue.render();
         }
@@ -263,6 +271,11 @@ class Game {
 
         // Render UI elements (not translated)
         this.renderUI();
+        
+        // Render cue ball placement instruction after UI (so it appears on top)
+        if (this.isPlacingCueBall) {
+            this.renderCueBallPlacementInstruction();
+        }
     }
 
     /**
@@ -271,101 +284,390 @@ class Game {
     renderUI() {
         push();
 
-        // Semi-transparent background for UI
-        fill(0, 0, 0, 180);
-        noStroke();
-        rect(5, 5, 300, 165, 5);
-
-        // Title
-        fill(255);
-        textAlign(LEFT);
-        textSize(18);
-        textStyle(BOLD);
-        text("SNOOKER GAME", 15, 30);
-
-        textStyle(NORMAL);
-        textSize(14);
-
-        // Display mode
+        // Main menu panel with gradient background
+        this.drawPanel(5, 5, 340, 200, 'SNOOKER CHAMPIONSHIP');
+        
+        // Game mode indicator
         fill(255, 255, 100);
-        text(`Mode: ${this.getModeName()}`, 15, 55);
-
-        // Instructions
+        textAlign(LEFT);
+        textSize(16);
+        textStyle(BOLD);
+        text(`${this.getModeName()}`, 20, 55);
+        
+        // Current player indicator
+        textStyle(NORMAL);
+        fill(200, 200, 255);
+        textSize(14);
+        text(`Current Player: ${this.scoreManager.currentPlayer}`, 20, 75);
+        
+        // Instructions section
+        fill(200);
+        textSize(11);
+        text("CONTROLS", 20, 100);
+        
         fill(255);
-        textSize(12);
-        text("Controls:", 15, 75);
+        textSize(10);
         if (this.isPlacingCueBall) {
-            fill(255, 255, 100);
-            text("• Click in D-zone to place cue ball", 15, 90);
-            fill(255);
-            text("• Press 1, 2, or 3 to change ball layout", 15, 105);
-            text("• Press M to toggle sound", 15, 120);
+            this.drawInstruction("Click D-zone", "Place cue ball", 20, 115);
+            this.drawInstruction("1, 2, 3", "Change layout", 20, 130);
+            this.drawInstruction("M", "Toggle sound", 20, 145);
         } else {
-            text("• Click & drag from cue ball to aim", 15, 90);
-            text("• Pull back for more power", 15, 105);
-            text("• Press 1, 2, or 3 to change ball layout", 15, 120);
-            text("• Press M to toggle sound", 15, 135);
+            this.drawInstruction("Drag from cue", "Aim shot", 20, 115);
+            this.drawInstruction("Pull back", "Adjust power", 20, 130);
+            this.drawInstruction("1, 2, 3", "Change layout", 20, 145);
+            this.drawInstruction("M", "Toggle sound", 20, 160);
         }
-
-        // Sound status
+        
+        // Sound indicator
+        textAlign(LEFT);
         if (soundManager && soundManager.muted) {
             fill(255, 100, 100);
-            text("🔇 Sound: OFF", 15, 155);
+            text("🔇 MUTED", 20, 185);
         } else {
             fill(100, 255, 100);
-            text("🔊 Sound: ON", 15, 155);
+            text("🔊 SOUND ON", 20, 185);
         }
 
-        // Ball count
-        const activeBalls = this.ballManager.balls.filter(b => !b.isPotted).length;
-        const pottedReds = this.ballManager.balls.filter(b => b.isPotted && b.colorName === 'red').length;
+        // Scoreboard panel
+        this.drawPanel(width - 320, 5, 315, 240, 'SCOREBOARD');
+        this.renderScoreboard();
+        
+        // Statistics panel
+        this.drawPanel(5, 215, 340, 180, 'GAME STATISTICS');
+        this.renderStatistics();
+        
+        // Recent events panel with enhanced display
+        this.renderRecentEvents();
 
-        fill(0, 0, 0, 180);
-        rect(width - 155, 5, 150, 60, 5);
-
-        fill(255);
-        textAlign(RIGHT);
-        textSize(14);
-        text(`Active Balls: ${activeBalls}`, width - 15, 30);
-        text(`Potted Reds: ${pottedReds}`, width - 15, 50);
-
-        // Collision reports with better styling
-        if (this.collisionReports.length > 0) {
-            fill(0, 0, 0, 180);
-            rect(5, height - 85, 300, 80, 5);
-
-            fill(255, 255, 100);
-            textAlign(LEFT);
-            textSize(12);
-            text("Recent Events:", 15, height - 65);
-
-            fill(255);
-            // Show last 3 collisions
-            for (let i = 0; i < Math.min(3, this.collisionReports.length); i++) {
-                const alpha = 255 - i * 50; // Fade older reports
-                fill(255, alpha);
-                text(`• ${this.collisionReports[i]}`, 15, height - 45 + i * 18);
-            }
-        }
-
-        // Game state indicators
+        // Game state overlays
         const cueBall = this.ballManager.getCueBall();
         if (cueBall && cueBall.isPotted) {
-            // Warning when cue ball is potted
-            fill(255, 0, 0);
-            textAlign(CENTER);
-            textSize(24);
-            text("CUE BALL POTTED!", width / 2, height / 2);
-            textSize(16);
-            text("(Press 1, 2, or 3 to reset)", width / 2, height / 2 + 30);
+            this.drawWarningOverlay("CUE BALL POTTED!", "Press 1, 2, or 3 to reset");
         } else if (this.ballsMoving) {
-            // Show waiting message when balls are moving
-            fill(255, 255, 100);
-            textAlign(CENTER);
-            textSize(16);
-            text("Wait for balls to stop...", width / 2, height - 100);
+            this.drawStatusMessage("Wait for balls to stop...");
         }
 
+        pop();
+    }
+    
+    /**
+     * Draw a styled panel
+     */
+    drawPanel(x, y, w, h, title) {
+        push();
+        
+        // Panel background with gradient effect
+        drawingContext.fillStyle = drawingContext.createLinearGradient(x, y, x, y + h);
+        drawingContext.fillStyle.addColorStop(0, 'rgba(0, 0, 0, 0.85)');
+        drawingContext.fillStyle.addColorStop(1, 'rgba(0, 0, 0, 0.95)');
+        drawingContext.fillRect(x, y, w, h);
+        
+        // Border
+        stroke(255, 255, 100, 100);
+        strokeWeight(1);
+        noFill();
+        rect(x, y, w, h, 8);
+        
+        // Title bar
+        fill(255, 255, 100, 20);
+        noStroke();
+        rect(x, y, w, 30, 8, 8, 0, 0);
+        
+        // Title text
+        fill(255, 255, 100);
+        textAlign(CENTER);
+        textSize(14);
+        textStyle(BOLD);
+        text(title, x + w/2, y + 20);
+        
+        pop();
+    }
+    
+    /**
+     * Draw control instruction
+     */
+    drawInstruction(key, action, x, y) {
+        push();
+        fill(255, 255, 100);
+        textStyle(BOLD);
+        text(key + ":", x, y);
+        fill(255);
+        textStyle(NORMAL);
+        text(action, x + textWidth(key + ": ") + 5, y);
+        pop();
+    }
+    
+    /**
+     * Render scoreboard
+     */
+    renderScoreboard() {
+        const x = width - 300;
+        let y = 50;
+        const labelX = x;
+        const valueX = width - 25;
+        const rowHeight = 38;
+        
+        // Consistent text settings
+        textAlign(LEFT);
+        textStyle(NORMAL);
+        
+        // Player scores section
+        this.drawScoreRow("PLAYER 1", this.scoreManager.player1Score, labelX, y, valueX,
+                         this.scoreManager.currentPlayer === 1);
+        y += rowHeight;
+        this.drawScoreRow("PLAYER 2", this.scoreManager.player2Score, labelX, y, valueX,
+                         this.scoreManager.currentPlayer === 2);
+        
+        // Separator line
+        y += rowHeight;
+        stroke(100);
+        strokeWeight(1);
+        line(x, y - 15, width - 25, y - 15);
+        noStroke();
+        
+        // Stats section with consistent formatting
+        // Current break
+        this.drawStatRow("CURRENT BREAK", this.scoreManager.stats.currentBreak.toString(), 
+                        labelX, y, valueX, color(255, 255, 100), 20);
+        
+        // Highest break
+        y += rowHeight;
+        this.drawStatRow("HIGHEST BREAK", this.scoreManager.stats.highestBreak.toString(), 
+                        labelX, y, valueX, color(100, 255, 100), 16);
+        
+        // Balls remaining
+        y += rowHeight;
+        const activeBalls = this.ballManager.balls.filter(b => !b.isPotted).length;
+        const totalReds = this.ballManager.balls.filter(b => b.colorName === 'red').length;
+        const pottedReds = this.ballManager.balls.filter(b => b.isPotted && b.colorName === 'red').length;
+        
+        this.drawStatRow("BALLS REMAINING", `${activeBalls} (${totalReds - pottedReds} reds)`, 
+                        labelX, y, valueX, color(255), 14);
+    }
+    
+    /**
+     * Draw a statistics row with consistent formatting
+     */
+    drawStatRow(label, value, labelX, y, valueX, valueColor, valueSize) {
+        // Label
+        fill(180);
+        textAlign(LEFT);
+        textSize(12);
+        textStyle(NORMAL);
+        text(label, labelX, y);
+        
+        // Value
+        fill(valueColor);
+        textAlign(RIGHT);
+        textSize(valueSize);
+        textStyle(BOLD);
+        text(value, valueX, y + 2);
+        
+        // Reset
+        textStyle(NORMAL);
+        textAlign(LEFT);
+    }
+    
+    /**
+     * Draw score row
+     */
+    drawScoreRow(label, score, labelX, y, valueX, isActive) {
+        push();
+        
+        if (isActive) {
+            // Active player highlight
+            fill(255, 255, 100, 30);
+            noStroke();
+            rect(labelX - 10, y - 22, valueX - labelX + 35, 32, 5);
+        }
+        
+        // Player label
+        fill(isActive ? 255 : 180);
+        textAlign(LEFT);
+        textSize(14);
+        textStyle(NORMAL);
+        text(label, labelX, y);
+        
+        // Score value
+        fill(isActive ? color(255, 255, 100) : color(200));
+        textAlign(RIGHT);
+        textSize(26);
+        textStyle(BOLD);
+        text(score.toString(), valueX, y + 2);
+        
+        pop();
+    }
+    
+    /**
+     * Render game statistics
+     */
+    renderStatistics() {
+        const x = 25;
+        let y = 260;
+        
+        textAlign(LEFT);
+        textSize(11);
+        
+        // Game time
+        this.drawStat("Game Time", this.scoreManager.getGameTime(), x, y);
+        y += 25;
+        
+        // Shot accuracy
+        this.drawStat("Shot Accuracy", `${this.scoreManager.getShotAccuracy()}%`, x, y);
+        y += 25;
+        
+        // Total shots
+        this.drawStat("Total Shots", this.scoreManager.stats.totalShots.toString(), x, y);
+        y += 25;
+        
+        // Balls potted per shot
+        this.drawStat("Avg Pot Rate", this.scoreManager.getAveragePotRate(), x, y);
+        y += 25;
+        
+        // Fouls
+        this.drawStat("Fouls", this.scoreManager.stats.fouls.toString(), x, y);
+        
+        // Ball breakdown on the right
+        this.renderBallBreakdown(x + 180, 260);
+    }
+    
+    /**
+     * Draw a statistic row
+     */
+    drawStat(label, value, x, y) {
+        fill(150);
+        text(label + ":", x, y);
+        fill(255);
+        textAlign(RIGHT);
+        text(value, x + 150, y);
+        textAlign(LEFT);
+    }
+    
+    /**
+     * Render ball breakdown
+     */
+    renderBallBreakdown(x, y) {
+        textSize(10);
+        fill(200);
+        text("BALLS POTTED", x, y);
+        y += 20;
+        
+        const colors = ['red', 'yellow', 'green', 'brown', 'blue', 'pink', 'black'];
+        const emojis = {
+            red: '🔴',
+            yellow: '🟡',
+            green: '🟢',
+            brown: '🟤',
+            blue: '🔵',
+            pink: '🩷',
+            black: '⚫'
+        };
+        
+        for (let color of colors) {
+            const count = this.scoreManager.stats.ballsPotted[color];
+            if (count > 0) {
+                fill(255);
+                text(`${emojis[color]} ${count}`, x, y);
+                y += 18;
+            }
+        }
+    }
+    
+    /**
+     * Render recent events with enhanced formatting
+     */
+    renderRecentEvents() {
+        const events = this.scoreManager.recentEvents;
+        if (events.length === 0) return;
+        
+        const panelWidth = 360;
+        const panelHeight = Math.min(140, 35 + events.length * 25);
+        
+        this.drawPanel(5, height - panelHeight - 10, panelWidth, panelHeight, 'RECENT EVENTS');
+        
+        let y = height - panelHeight + 35;
+        
+        textAlign(LEFT);
+        
+        for (let i = 0; i < Math.min(5, events.length); i++) {
+            const event = events[i];
+            const desc = this.scoreManager.getEventDescription(event);
+            const alpha = 255 - i * 40;
+            
+            // Event time
+            fill(150, alpha);
+            textSize(9);
+            text(event.time, 20, y);
+            
+            // Event icon and text
+            textSize(11);
+            text(desc.icon, 70, y);
+            
+            // Event description with color
+            fill(desc.color.levels[0], desc.color.levels[1], desc.color.levels[2], alpha);
+            text(desc.text, 90, y);
+            
+            y += 22;
+        }
+    }
+    
+    /**
+     * Draw warning overlay
+     */
+    drawWarningOverlay(mainText, subText) {
+        push();
+        
+        // Dark overlay
+        fill(0, 0, 0, 150);
+        rect(0, 0, width, height);
+        
+        // Warning box
+        const boxWidth = 400;
+        const boxHeight = 120;
+        const boxX = (width - boxWidth) / 2;
+        const boxY = (height - boxHeight) / 2;
+        
+        fill(20, 20, 20, 240);
+        stroke(255, 0, 0);
+        strokeWeight(3);
+        rect(boxX, boxY, boxWidth, boxHeight, 10);
+        
+        // Warning text
+        fill(255, 0, 0);
+        textAlign(CENTER);
+        textSize(28);
+        textStyle(BOLD);
+        text(mainText, width / 2, height / 2 - 10);
+        
+        fill(255);
+        textSize(16);
+        textStyle(NORMAL);
+        text(subText, width / 2, height / 2 + 25);
+        
+        pop();
+    }
+    
+    /**
+     * Draw status message
+     */
+    drawStatusMessage(message) {
+        push();
+        
+        const boxWidth = 300;
+        const boxHeight = 50;
+        const boxX = (width - boxWidth) / 2;
+        const boxY = height - 150;
+        
+        fill(0, 0, 0, 200);
+        stroke(255, 255, 100, 100);
+        strokeWeight(1);
+        rect(boxX, boxY, boxWidth, boxHeight, 25);
+        
+        fill(255, 255, 100);
+        textAlign(CENTER);
+        textSize(16);
+        text(message, width / 2, boxY + 32);
+        
         pop();
     }
 
@@ -382,9 +684,9 @@ class Game {
     }
 
     /**
-     * Render cue ball placement mode
+     * Render cue ball placement preview (D-zone highlight and ball preview)
      */
-    renderCueBallPlacement() {
+    renderCueBallPlacementPreview() {
         push();
 
         // Highlight D-zone
@@ -402,7 +704,6 @@ class Game {
         // Draw preview cue ball at mouse position if in D-zone
         const mouseGameX = (mouseX - this.offsetX) / this.scale;
         const mouseGameY = (mouseY - this.offsetY) / this.scale;
-
 
         if (this.isValidCueBallPosition(mouseGameX, mouseGameY)) {
             // Valid position - show green preview
@@ -432,12 +733,54 @@ class Game {
             text("Must place in D-zone", mouseX - this.offsetX, mouseY - this.offsetY - 20);
         }
 
-        // Instructions
+        pop();
+    }
+    
+    /**
+     * Render cue ball placement instruction (separate method for better positioning)
+     */
+    renderCueBallPlacementInstruction() {
+        push();
+        
+        // Create highlighted background box
+        const instructionText = "PLACE THE CUE BALL IN THE D-ZONE";
+        textSize(24);
+        const textW = textWidth(instructionText) + 60;
+        const textH = 50;
+        const textX = (width - textW) / 2;
+        const textY = this.offsetY + this.tablePixelHeight + 30;
+        
+        // Glowing background effect
+        drawingContext.shadowBlur = 20;
+        drawingContext.shadowColor = 'rgba(255, 255, 100, 0.8)';
+        
+        // Background box
+        fill(0, 0, 0, 220);
+        stroke(255, 255, 100);
+        strokeWeight(3);
+        rect(textX, textY, textW, textH, 10);
+        
+        // Reset shadow
+        drawingContext.shadowBlur = 0;
+        
+        // Text with animation effect
         fill(255, 255, 100);
+        noStroke();
         textAlign(CENTER);
-        textSize(18);
-        text("Place the cue ball in the D-zone", 0, -this.tableHeight * this.scale / 2 - 30);
-
+        textSize(24);
+        textStyle(BOLD);
+        
+        // Pulsing effect
+        const pulse = sin(frameCount * 0.05) * 5 + 5;
+        drawingContext.shadowBlur = pulse;
+        drawingContext.shadowColor = 'rgba(255, 255, 100, 1)';
+        
+        text(instructionText, width / 2, textY + 35);
+        
+        // Reset shadow
+        drawingContext.shadowBlur = 0;
+        textStyle(NORMAL);
+        
         pop();
     }
 
@@ -515,7 +858,7 @@ class Game {
      * Handle when a ball is potted
      */
     handleBallPotted(ball) {
-        console.log(`%cBALL POTTED: ${ball.colorName}`, `color: ${this.getBallColor(ball.colorName)}`);
+        console.log(`%cPlayer ${this.scoreManager.currentPlayer} - BALL POTTED: ${ball.colorName}`, `color: ${this.getBallColor(ball.colorName)}`);
         ball.isPotted = true;
 
         // Remove from physics world
@@ -526,11 +869,9 @@ class Game {
             soundManager.playPocketDrop();
         }
 
-        // Add to collision reports
-        const report = `${ball.colorName} ball potted!`;
-        this.collisionReports.unshift(report);
-        if (this.collisionReports.length > 5) {
-            this.collisionReports.pop();
+        // Record in score manager
+        if (ball.colorName !== 'white') {
+            this.scoreManager.recordBallPotted(ball.colorName);
         }
 
         // Track consecutive colored ball potting
@@ -538,9 +879,8 @@ class Game {
             if (this.lastPottedBall && this.lastPottedBall.colorName !== 'red' && this.lastPottedBall.colorName !== 'white') {
                 this.consecutiveColoredPotted++;
                 if (this.consecutiveColoredPotted >= 2) {
-                    const errorReport = "ERROR: Two consecutive colored balls potted!";
-                    this.collisionReports.unshift(errorReport);
-                    console.warn(errorReport);
+                    this.scoreManager.recordFoul("Two consecutive colored balls potted");
+                    console.warn("ERROR: Two consecutive colored balls potted!");
                 }
             } else {
                 this.consecutiveColoredPotted = 1;
@@ -549,10 +889,9 @@ class Game {
         } else if (ball.colorName === 'red') {
             this.consecutiveColoredPotted = 0;
         } else if (ball.colorName === 'white') {
-            // Cue ball potted - need to replace
+            // Cue ball potted - foul
             this.isPlacingCueBall = true;
-            const report = "Cue ball potted! Place it in the D-zone";
-            this.collisionReports.unshift(report);
+            this.scoreManager.recordFoul("Cue ball potted");
         }
 
         this.lastPottedBall = ball;
@@ -695,7 +1034,11 @@ class Game {
         if (!this.isPlacingCueBall) {
             const cueBall = this.ballManager.getCueBall();
             if (cueBall) {
-                this.cue.shoot(cueBall);
+                const shotTaken = this.cue.shoot(cueBall);
+                // Only track shot if it was actually taken
+                if (shotTaken) {
+                    this.scoreManager.startNewShot();
+                }
             }
         }
     }
@@ -718,29 +1061,18 @@ class Game {
 
                 // Only report collisions involving the cue ball
                 if (ballA && ballB && (ballA.id === 'cue' || ballB.id === 'cue')) {
-                    let report = '';
                     if (ballA.id === 'cue') {
-                        report = `Cue ball hit ${ballB.colorName}`;
-                        console.log('CUE HIT:', ballB.colorName);
+                        this.scoreManager.recordBallHit(ballB.colorName);
+                        console.log(`Player ${this.scoreManager.currentPlayer} - CUE HIT: ${ballB.colorName}`);
                     } else {
-                        report = `Cue ball hit ${ballA.colorName}`;
-                        console.log('CUE HIT:', ballA.colorName);
-                    }
-                    this.collisionReports.unshift(report);
-
-                    // Keep only recent reports
-                    if (this.collisionReports.length > 5) {
-                        this.collisionReports.pop();
+                        this.scoreManager.recordBallHit(ballA.colorName);
+                        console.log(`Player ${this.scoreManager.currentPlayer} - CUE HIT: ${ballA.colorName}`);
                     }
                 }
             } else if ((bodyA.label === 'cue' && bodyB.label === 'cushion') ||
                        (bodyA.label === 'cushion' && bodyB.label === 'cue')) {
                 // Cue ball hit cushion
-                const report = 'Cue ball hit cushion';
-                this.collisionReports.unshift(report);
-                if (this.collisionReports.length > 5) {
-                    this.collisionReports.pop();
-                }
+                this.scoreManager.recordCushionHit();
             }
         }
     }

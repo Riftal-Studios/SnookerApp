@@ -4,9 +4,7 @@
  * A physics-based snooker game implementation using p5.js for rendering
  * and Matter.js for physics simulation. Features realistic ball physics,
  * cue stick mechanics, and proper snooker rules.
- * 
- * COMMENTARY (500 words)
- * =====================
+ *
  * 
  * Design Philosophy:
  * This snooker game was designed with a focus on realism and user experience. The architecture

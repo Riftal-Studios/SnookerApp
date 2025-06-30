@@ -52,7 +52,9 @@ class Cue {
      * Take the shot
      */
     shoot(cueBall) {
-        if (this.isAiming && this.power > 0 && this.cueBall) {
+        // Only shoot if we're aiming, have power, and have dragged far enough
+        const minPower = 0.5; // Minimum power threshold to count as a shot
+        if (this.isAiming && this.power > minPower && this.cueBall) {
             console.log('SHOT TAKEN - Power:', this.power.toFixed(1));
             // Calculate force direction (from cue ball towards mouse, not away)
             const force = p5.Vector.sub(this.aimEnd, this.aimStart);
@@ -75,7 +77,16 @@ class Cue {
             this.isAiming = false;
             this.power = 0;
             this.cueBall = null;
+            
+            return true; // Shot was taken
         }
+        
+        // Reset if not a valid shot
+        this.isAiming = false;
+        this.power = 0;
+        this.cueBall = null;
+        
+        return false; // No shot taken
     }
     
     /**
