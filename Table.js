@@ -227,6 +227,27 @@ class Table {
 
         World.add(world, helpers);
     }
+    
+    /**
+     * Recreate physics bodies when scale changes
+     */
+    recreatePhysicsBodies() {
+        // Remove old physics bodies
+        if (this.cushions.length > 0) {
+            World.remove(world, this.cushions);
+        }
+        if (this.walls.length > 0) {
+            World.remove(world, this.walls);
+        }
+        
+        // Clear arrays
+        this.cushions = [];
+        this.walls = [];
+        
+        // Recreate with new dimensions
+        this.createCushions();
+        this.createBoundaryWalls();
+    }
     renderDZone() {
         push();
 

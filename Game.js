@@ -67,48 +67,69 @@ class Game {
      * Update table position on window resize
      */
     updateTablePosition() {
+        const oldScale = this.scale;
         const oldOffsetX = this.offsetX;
         const oldOffsetY = this.offsetY;
 
         // Recalculate scale and offsets
         this.calculateScale();
+        
+        console.log(`Window resized - Scale changed from ${oldScale.toFixed(2)} to ${this.scale.toFixed(2)}`);
 
-        // Update component offsets
+        // Update component properties
+        this.table.scale = this.scale;
         this.table.offsetX = this.offsetX;
         this.table.offsetY = this.offsetY;
+        this.ballManager.scale = this.scale;
         this.ballManager.offsetX = this.offsetX;
         this.ballManager.offsetY = this.offsetY;
+        this.cue.scale = this.scale;
         this.cue.offsetX = this.offsetX;
         this.cue.offsetY = this.offsetY;
 
-        // Update all ball body positions
-        const deltaX = this.offsetX - oldOffsetX;
-        const deltaY = this.offsetY - oldOffsetY;
-
+        // Update all ball positions and physics bodies
         for (let ball of this.ballManager.balls) {
             if (!ball.isPotted) {
-                Body.setPosition(ball.body, {
-                    x: ball.body.position.x + deltaX,
-                    y: ball.body.position.y + deltaY
-                });
+                // Get ball's position in game units (before updating scale)
+                const gameX = ball.x;  // This uses the getter which converts from pixels to game units
+                const gameY = ball.y;
+                
+                // Update ball's scale and offsets
+                ball.scale = this.scale;
+                ball.offsetX = this.offsetX;
+                ball.offsetY = this.offsetY;
+                
+                // Recalculate pixel position with new scale and offsets
+                const newPixelX = this.offsetX + gameX * this.scale;
+                const newPixelY = this.offsetY + gameY * this.scale;
+                
+                // Remove old physics body
+                World.remove(world, ball.body);
+                
+                // Create new physics body with updated scale
+                ball.body = Bodies.circle(
+                    newPixelX,
+                    newPixelY,
+                    ball.radius * this.scale,
+                    {
+                        restitution: 0.5,
+                        friction: 0.02,
+                        frictionAir: 0.025,
+                        label: ball.id,
+                        collisionFilter: {
+                            category: CATEGORY_BALL,
+                            mask: CATEGORY_BALL | CATEGORY_CUSHION
+                        }
+                    }
+                );
+                
+                // Add the new body to the world
+                World.add(world, ball.body);
             }
         }
 
-        // Update cushion positions
-        for (let cushion of this.table.cushions) {
-            Body.setPosition(cushion, {
-                x: cushion.position.x + deltaX,
-                y: cushion.position.y + deltaY
-            });
-        }
-
-        // Update boundary wall positions
-        for (let wall of this.table.walls) {
-            Body.setPosition(wall, {
-                x: wall.position.x + deltaX,
-                y: wall.position.y + deltaY
-            });
-        }
+        // Recreate table physics bodies with new dimensions
+        this.table.recreatePhysicsBodies();
 
         // Ensure D-zone balls stay within bounds
         if (this.isPlacingCueBall) {
